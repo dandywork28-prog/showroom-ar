@@ -7,6 +7,7 @@ create table if not exists public.pelanggan (
     no_ktp varchar(30) not null unique check (btrim(no_ktp) <> ''),
     no_telp varchar(20),
     alamat text,
+    is_demo boolean not null default false,
     created_at timestamptz not null default now()
 );
 
@@ -19,6 +20,7 @@ create table if not exists public.kendaraan (
     harga numeric(15,2) not null check (harga >= 0),
     status varchar(20) not null default 'TERSEDIA'
         check (status in ('TERSEDIA', 'TERJUAL')),
+    is_demo boolean not null default false,
     created_at timestamptz not null default now()
 );
 
@@ -36,6 +38,7 @@ create table if not exists public.penjualan (
     sisa_piutang numeric(15,2) not null default 0 check (sisa_piutang >= 0),
     status varchar(20) not null default 'BELUM LUNAS'
         check (status in ('LUNAS', 'BELUM LUNAS')),
+    is_demo boolean not null default false,
     created_at timestamptz not null default now(),
     check (uang_muka <= harga_jual)
 );
@@ -48,8 +51,28 @@ create table if not exists public.pembayaran (
     tanggal_pembayaran date not null default current_date,
     jumlah_bayar numeric(15,2) not null check (jumlah_bayar > 0),
     keterangan varchar(150),
+    is_demo boolean not null default false,
     created_at timestamptz not null default now()
 );
+
+-- Baris lama tetap privat; hanya baris demo yang disajikan oleh API publik.
+alter table public.pelanggan
+    add column if not exists is_demo boolean not null default false;
+alter table public.kendaraan
+    add column if not exists is_demo boolean not null default false;
+alter table public.penjualan
+    add column if not exists is_demo boolean not null default false;
+alter table public.pembayaran
+    add column if not exists is_demo boolean not null default false;
+
+create index if not exists idx_pelanggan_demo
+    on public.pelanggan(is_demo, id_pelanggan);
+create index if not exists idx_kendaraan_demo
+    on public.kendaraan(is_demo, id_kendaraan);
+create index if not exists idx_penjualan_demo
+    on public.penjualan(is_demo, id_penjualan);
+create index if not exists idx_pembayaran_demo
+    on public.pembayaran(is_demo, id_pembayaran);
 
 create index if not exists idx_penjualan_pelanggan
     on public.penjualan(id_pelanggan);
@@ -59,6 +82,71 @@ create index if not exists idx_pembayaran_penjualan
     on public.pembayaran(id_penjualan);
 create index if not exists idx_pembayaran_tanggal
     on public.pembayaran(tanggal_pembayaran);
+
+create or replace function public.jaga_relasi_demo_penjualan()
+returns trigger
+language plpgsql
+as $$
+declare
+    pelanggan_demo boolean;
+    kendaraan_demo boolean;
+begin
+    select p.is_demo into pelanggan_demo
+    from public.pelanggan p
+    where p.id_pelanggan = new.id_pelanggan;
+
+    if not found or pelanggan_demo is distinct from new.is_demo then
+        raise exception using
+            errcode = '23514',
+            message = 'Penjualan hanya boleh menggunakan pelanggan pada mode data yang sama.';
+    end if;
+
+    select k.is_demo into kendaraan_demo
+    from public.kendaraan k
+    where k.id_kendaraan = new.id_kendaraan;
+
+    if not found or kendaraan_demo is distinct from new.is_demo then
+        raise exception using
+            errcode = '23514',
+            message = 'Penjualan hanya boleh menggunakan kendaraan pada mode data yang sama.';
+    end if;
+
+    return new;
+end;
+$$;
+
+drop trigger if exists trg_jaga_relasi_demo_penjualan on public.penjualan;
+create trigger trg_jaga_relasi_demo_penjualan
+before insert or update on public.penjualan
+for each row
+execute function public.jaga_relasi_demo_penjualan();
+
+create or replace function public.jaga_relasi_demo_pembayaran()
+returns trigger
+language plpgsql
+as $$
+declare
+    penjualan_demo boolean;
+begin
+    select s.is_demo into penjualan_demo
+    from public.penjualan s
+    where s.id_penjualan = new.id_penjualan;
+
+    if not found or penjualan_demo is distinct from new.is_demo then
+        raise exception using
+            errcode = '23514',
+            message = 'Pembayaran hanya boleh menggunakan penjualan pada mode data yang sama.';
+    end if;
+
+    return new;
+end;
+$$;
+
+drop trigger if exists trg_jaga_relasi_demo_pembayaran on public.pembayaran;
+create trigger trg_jaga_relasi_demo_pembayaran
+before insert or update on public.pembayaran
+for each row
+execute function public.jaga_relasi_demo_pembayaran();
 
 create or replace function public.hitung_piutang_penjualan()
 returns trigger
@@ -193,3 +281,65 @@ after insert or update of id_kendaraan or delete
 on public.penjualan
 for each row
 execute function public.sinkron_status_kendaraan();
+
+insert into public.pelanggan
+    (nama_pelanggan, no_ktp, no_telp, alamat, is_demo)
+values
+    ('Nadia Pratama', 'DEMO-KTP-001', '081200000001', 'Alamat contoh, bukan data pelanggan nyata', true),
+    ('Raka Wijaya', 'DEMO-KTP-002', '081200000002', 'Alamat contoh, bukan data pelanggan nyata', true)
+on conflict (no_ktp) do nothing;
+
+insert into public.kendaraan
+    (merk, model, tahun, warna, harga, is_demo)
+select seed.merk, seed.model, seed.tahun, seed.warna, seed.harga, true
+from (values
+    ('Toyota', 'Avanza', 2023, 'Putih', 245000000::numeric),
+    ('Honda', 'Brio', 2022, 'Merah', 180000000::numeric),
+    ('Mitsubishi', 'Xpander', 2024, 'Silver', 310000000::numeric)
+) as seed(merk, model, tahun, warna, harga)
+where not exists (
+    select 1
+    from public.kendaraan existing
+    where existing.is_demo
+      and existing.merk = seed.merk
+      and existing.model = seed.model
+      and existing.tahun = seed.tahun
+);
+
+insert into public.penjualan
+    (id_pelanggan, id_kendaraan, tanggal_penjualan, harga_jual, uang_muka, is_demo)
+select p.id_pelanggan, k.id_kendaraan, current_date - 30, 245000000, 45000000, true
+from public.pelanggan p
+cross join public.kendaraan k
+where p.no_ktp = 'DEMO-KTP-001'
+  and k.is_demo and k.merk = 'Toyota' and k.model = 'Avanza' and k.tahun = 2023
+  and not exists (
+      select 1 from public.penjualan s where s.id_kendaraan = k.id_kendaraan
+  )
+on conflict (id_kendaraan) do nothing;
+
+insert into public.penjualan
+    (id_pelanggan, id_kendaraan, tanggal_penjualan, harga_jual, uang_muka, is_demo)
+select p.id_pelanggan, k.id_kendaraan, current_date - 12, 180000000, 80000000, true
+from public.pelanggan p
+cross join public.kendaraan k
+where p.no_ktp = 'DEMO-KTP-002'
+  and k.is_demo and k.merk = 'Honda' and k.model = 'Brio' and k.tahun = 2022
+  and not exists (
+      select 1 from public.penjualan s where s.id_kendaraan = k.id_kendaraan
+  )
+on conflict (id_kendaraan) do nothing;
+
+insert into public.pembayaran
+    (id_penjualan, tanggal_pembayaran, jumlah_bayar, keterangan, is_demo)
+select s.id_penjualan, current_date - 5, 25000000, 'Cicilan contoh pertama', true
+from public.penjualan s
+join public.kendaraan k on k.id_kendaraan = s.id_kendaraan
+where s.is_demo and k.is_demo
+  and k.merk = 'Toyota' and k.model = 'Avanza' and k.tahun = 2023
+  and not exists (
+      select 1
+      from public.pembayaran existing
+      where existing.id_penjualan = s.id_penjualan
+        and existing.keterangan = 'Cicilan contoh pertama'
+  );

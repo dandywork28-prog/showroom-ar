@@ -25,7 +25,7 @@
 
         <div class="sidebar-bottom">
             <span class="online-dot" id="backendStatusDot"></span>
-            <span><strong id="backendStatus">Memuat data...</strong><small id="backendStatusDetail">Menghubungkan ke backend</small></span>
+            <span><strong id="backendStatus">Memuat demo...</strong><small id="backendStatusDetail">Menghubungkan ke backend</small></span>
         </div>
     </aside>
 
@@ -36,7 +36,6 @@
                 <h1 id="pageTitle">Dashboard</h1>
             </div>
             <div class="topbar-actions">
-                <button class="btn btn-secondary" id="logoutButton" hidden>Keluar</button>
                 <button class="btn btn-secondary" id="refreshDashboard">↻ Refresh data</button>
             </div>
         </header>
@@ -167,24 +166,10 @@
             </article>
         </section>
 
-        <footer>Showroom AR · Sistem Manajemen Piutang Penjualan · Supabase PostgreSQL</footer>
+        <footer>Showroom AR · Sistem Manajemen Piutang Penjualan · Mode demo publik</footer>
     </main>
 </div>
 <div id="toastHost" class="toast-host"></div>
-<div class="auth-gate" id="authGate" hidden>
-    <section class="auth-card glass">
-        <span class="brand-icon auth-brand">AR</span>
-        <p class="eyebrow">SHOWROOM AR / AKSES ADMIN</p>
-        <h1>Selamat datang kembali.</h1>
-        <p class="auth-description">Masuk dengan akun admin Supabase untuk membuka data showroom.</p>
-        <form id="loginForm">
-            <label>Email admin<input id="loginEmail" type="email" autocomplete="username" required></label>
-            <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
-            <p class="auth-error" id="loginError" role="alert" hidden></p>
-            <button class="btn btn-primary auth-submit" id="loginButton" type="submit">Masuk ke dashboard</button>
-        </form>
-    </section>
-</div>
 <script src="js/config.js"></script>
 <script src="js/script.js"></script>
 </body>

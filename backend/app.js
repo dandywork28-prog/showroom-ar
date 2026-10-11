@@ -5,8 +5,6 @@ const http = require("node:http");
 const PORT = Number(process.env.PORT || 3000);
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "";
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const LOCAL_ORIGINS = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
@@ -222,53 +220,6 @@ async function database(path, options = {}) {
     return data;
 }
 
-async function supabaseAuth(path, options = {}) {
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
-        method: options.method || "POST",
-        headers: {
-            apikey: SUPABASE_PUBLISHABLE_KEY,
-            Authorization: options.authorization || `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-            "Content-Type": "application/json"
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined
-    });
-
-    const text = await response.text();
-    let data = null;
-    try {
-        data = text ? JSON.parse(text) : null;
-    } catch {
-        data = text;
-    }
-
-    return { response, data };
-}
-
-async function authenticatedAdmin(req) {
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !ADMIN_EMAIL) {
-        return { status: 500, message: "Konfigurasi autentikasi backend belum lengkap." };
-    }
-
-    const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || "")?.[1];
-    if (!token) return { status: 401, message: "Silakan login untuk melanjutkan." };
-
-    try {
-        const { response, data } = await supabaseAuth("user", {
-            method: "GET",
-            authorization: `Bearer ${token}`
-        });
-        if (!response.ok) return { status: 401, message: "Sesi login tidak valid atau sudah berakhir." };
-
-        if (String(data?.email || "").trim().toLowerCase() !== ADMIN_EMAIL) {
-            return { status: 403, message: "Akun ini tidak diizinkan mengakses data showroom." };
-        }
-
-        return { user: { email: data.email } };
-    } catch {
-        return { status: 502, message: "Tidak dapat memverifikasi sesi melalui Supabase Auth." };
-    }
-}
-
 function databaseStatus(error) {
     if (error.code === "23505" || error.code === "23503") return 409;
     if (error.code === "23514") return 422;
@@ -299,92 +250,6 @@ const server = http.createServer(async (req, res) => {
         return success(res, 200, { status: "API aktif" }, origin);
     }
 
-    const authMatch = url.pathname.match(/^\/api\/auth\/(login|refresh|logout)$/);
-    if (authMatch) {
-        if (req.method !== "POST") {
-            res.setHeader("Allow", "POST, OPTIONS");
-            return failure(res, 405, "Metode tidak didukung untuk endpoint autentikasi ini.", origin);
-        }
-        if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !ADMIN_EMAIL) {
-            return failure(res, 500, "Konfigurasi autentikasi backend belum lengkap.", origin);
-        }
-        if (authMatch[1] === "logout") {
-            const auth = await authenticatedAdmin(req);
-            if (auth.status) return failure(res, auth.status, auth.message, origin);
-            const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || "")[1];
-            try {
-                const { response } = await supabaseAuth("logout", {
-                    method: "POST",
-                    authorization: `Bearer ${token}`
-                });
-                if (!response.ok) return failure(res, 401, "Sesi tidak dapat ditutup. Silakan login kembali.", origin);
-                return success(res, 200, { message: "Sesi berhasil ditutup." }, origin);
-            } catch {
-                return failure(res, 502, "Tidak dapat menghubungi Supabase Auth.", origin);
-            }
-        }
-
-        if (!req.headers["content-type"]?.toLowerCase().includes("application/json")) {
-            return failure(res, 415, "Content-Type harus application/json.", origin);
-        }
-
-        let body;
-        try {
-            body = await readBody(req);
-        } catch (error) {
-            return failure(res, 400, error.message, origin);
-        }
-
-        let authPath;
-        let authBody;
-        if (authMatch[1] === "login") {
-            const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-                typeof body.password !== "string" || !body.password) {
-                return failure(res, 400, "Masukkan email dan password yang valid.", origin);
-            }
-            if (email !== ADMIN_EMAIL) {
-                return failure(res, 403, "Akun ini tidak diizinkan mengakses data showroom.", origin);
-            }
-            authPath = "token?grant_type=password";
-            authBody = { email, password: body.password };
-        } else {
-            if (typeof body.refresh_token !== "string" || !body.refresh_token.trim()) {
-                return failure(res, 400, "Refresh token tidak valid.", origin);
-            }
-            authPath = "token?grant_type=refresh_token";
-            authBody = { refresh_token: body.refresh_token };
-        }
-
-        try {
-            const { response, data } = await supabaseAuth(authPath, { body: authBody });
-            if (!response.ok) {
-                return failure(
-                    res,
-                    response.status === 400 || response.status === 401 ? 401 : 502,
-                    authMatch[1] === "login"
-                        ? "Login gagal. Periksa email dan password akun Supabase Auth."
-                        : "Sesi sudah berakhir. Silakan login kembali.",
-                    origin
-                );
-            }
-
-            if (!data?.access_token || !data?.refresh_token || !data?.user?.email ||
-                String(data.user.email).trim().toLowerCase() !== ADMIN_EMAIL) {
-                return failure(res, 403, "Akun ini tidak diizinkan mengakses data showroom.", origin);
-            }
-
-            return success(res, 200, {
-                access_token: data.access_token,
-                refresh_token: data.refresh_token,
-                expires_in: Number(data.expires_in) || 3600,
-                user: { email: data.user.email }
-            }, origin);
-        } catch {
-            return failure(res, 502, "Tidak dapat menghubungi Supabase Auth.", origin);
-        }
-    }
-
     const match = url.pathname.match(
         /^\/api\/(pelanggan|kendaraan|penjualan|pembayaran)(?:\/([1-9]\d*))?$/
     );
@@ -405,11 +270,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-        const auth = await authenticatedAdmin(req);
-        if (auth.status) return failure(res, auth.status, auth.message, origin);
-
         if (req.method === "GET") {
-            const query = new URLSearchParams({ select: "*", order: `${spec.id}.desc` });
+            const query = new URLSearchParams({
+                select: "*",
+                order: `${spec.id}.desc`,
+                is_demo: "eq.true"
+            });
             if (id) query.set(spec.id, `eq.${id}`);
             const rows = await database(`${table}?${query}`);
 
@@ -434,8 +300,9 @@ const server = http.createServer(async (req, res) => {
             } catch (error) {
                 return failure(res, 400, error.message, origin);
             }
+            payload.is_demo = true;
 
-            const query = new URLSearchParams();
+            const query = new URLSearchParams({ is_demo: "eq.true" });
             if (id) query.set(spec.id, `eq.${id}`);
             const path = id ? `${table}?${query}` : table;
             const rows = await database(path, {
@@ -448,7 +315,10 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (req.method === "DELETE") {
-            const query = new URLSearchParams({ [spec.id]: `eq.${id}` });
+            const query = new URLSearchParams({
+                [spec.id]: `eq.${id}`,
+                is_demo: "eq.true"
+            });
             const rows = await database(`${table}?${query}`, {
                 method: "DELETE",
                 prefer: "return=representation"
