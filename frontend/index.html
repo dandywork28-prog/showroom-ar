@@ -1,0 +1,174 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Showroom AR | Manajemen Piutang</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="#">
+            <span class="brand-icon">AR</span>
+            <span><strong>Showroom AR</strong><small>SALES & RECEIVABLES</small></span>
+        </a>
+
+        <p class="nav-caption">MENU UTAMA</p>
+        <button class="nav-item active" data-page="dashboard">◫ <span>Dashboard</span></button>
+        <button class="nav-item" data-page="pelanggan">♙ <span>Pelanggan</span></button>
+        <button class="nav-item" data-page="kendaraan">▣ <span>Kendaraan</span></button>
+        <button class="nav-item" data-page="penjualan">↗ <span>Penjualan</span></button>
+        <button class="nav-item" data-page="pembayaran">↙ <span>Pembayaran</span></button>
+        <button class="nav-item" data-page="laporan">▤ <span>Laporan Piutang</span></button>
+
+        <div class="sidebar-bottom">
+            <span class="online-dot" id="backendStatusDot"></span>
+            <span><strong id="backendStatus">Memuat data...</strong><small id="backendStatusDetail">Menghubungkan ke backend</small></span>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">SHOWROOM MOBIL <span aria-hidden="true">/</span> KEUANGAN</p>
+                <h1 id="pageTitle">Dashboard</h1>
+            </div>
+            <button class="btn btn-secondary" id="refreshDashboard">↻ Refresh data</button>
+        </header>
+
+        <section class="page active" id="page-dashboard">
+            <div class="welcome glass">
+                <div>
+                    <p class="eyebrow">RINGKASAN OPERASIONAL</p>
+                    <h2>Kondisi showroom, dalam satu pandangan.</h2>
+                    <p>Pantau penjualan, penerimaan cicilan, dan posisi piutang pelanggan.</p>
+                </div>
+                <div class="welcome-symbol" aria-hidden="true">
+                    <span class="welcome-symbol-label">SHOWROOM / AR</span>
+                    <span class="welcome-symbol-mark">01</span>
+                    <span class="welcome-symbol-line"></span>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <article class="stat-card glass"><span>Total Kendaraan</span><strong id="statKendaraan">0</strong><small id="statKendaraanSub">Unit tersedia</small></article>
+                <article class="stat-card glass"><span>Transaksi Penjualan</span><strong id="statPenjualan">0</strong><small>Seluruh transaksi tercatat</small></article>
+                <article class="stat-card glass"><span>Piutang Awal</span><strong id="statPiutang">Rp0</strong><small>Sebelum pembayaran cicilan</small></article>
+                <article class="stat-card glass"><span>Sisa Piutang</span><strong id="statSisa">Rp0</strong><small>Belum tertagih</small></article>
+            </div>
+
+            <div class="content-grid">
+                <article class="panel glass">
+                    <div class="panel-heading"><div><p class="eyebrow">PENERIMAAN</p><h3>Ringkasan penagihan</h3></div></div>
+                    <div class="balance-line"><span>Piutang awal</span><strong id="balanceAwal">Rp0</strong></div>
+                    <div class="balance-line"><span>Total pembayaran</span><strong id="balanceBayar">Rp0</strong></div>
+                    <div class="progress-track"><div id="collectionProgress"></div></div>
+                    <p class="muted" id="collectionLabel">0% tertagih</p>
+                    <div class="balance-line"><span>Sisa piutang</span><strong id="balanceSisa">Rp0</strong></div>
+                </article>
+
+                <article class="panel glass">
+                    <p class="eyebrow">STATUS TRANSAKSI</p><h3>Pelunasan piutang</h3>
+                    <div class="status-count"><span class="status-dot green"></span><span>Lunas</span><strong id="countLunas">0</strong></div>
+                    <div class="status-count"><span class="status-dot orange"></span><span>Belum lunas</span><strong id="countBelum">0</strong></div>
+                    <div class="status-bar"><div id="barLunas"></div><div id="barBelum"></div></div>
+                    <p class="muted" id="statusHint">Belum ada transaksi.</p>
+                </article>
+            </div>
+
+            <article class="panel glass chart-panel">
+                <div class="panel-heading chart-heading">
+                    <div>
+                        <p class="eyebrow">TREN ENAM BULAN</p>
+                        <h3>Penjualan & pembayaran</h3>
+                    </div>
+                    <div class="chart-legend" aria-label="Keterangan grafik">
+                        <span><i class="legend-dot sales"></i>Penjualan</span>
+                        <span><i class="legend-dot payments"></i>Pembayaran</span>
+                    </div>
+                </div>
+                <p class="chart-subtitle">Nilai transaksi dan cicilan yang tercatat per bulan.</p>
+                <div class="chart-wrap" id="cashflowChart"></div>
+            </article>
+
+            <article class="panel glass">
+                <div class="panel-heading"><div><p class="eyebrow">AKTIVITAS TERBARU</p><h3>Penjualan terbaru</h3></div><button class="btn btn-secondary" data-go="penjualan">Lihat semua →</button></div>
+                <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Pelanggan</th><th>Kendaraan</th><th>Harga jual</th><th>Sisa piutang</th><th>Status</th></tr></thead><tbody id="recentSales"></tbody></table></div>
+            </article>
+        </section>
+
+        <section class="page" id="page-pelanggan">
+            <div class="page-intro"><div><p class="eyebrow">MASTER DATA</p><h2>Data pelanggan</h2><p>Kelola identitas pelanggan showroom.</p></div><button class="btn btn-primary" id="addPelanggan">＋ Tambah pelanggan</button></div>
+            <div class="panel glass form-panel" id="formPanelPelanggan" hidden><div class="panel-heading"><h3 id="pelangganFormTitle">Tambah pelanggan</h3><button class="icon-btn" data-close="formPanelPelanggan">✕</button></div>
+                <form id="formPelanggan"><input type="hidden" id="pelangganId"><div class="form-grid">
+                    <label>Nama lengkap<input id="namaPelanggan" required maxlength="100"></label>
+                    <label>Nomor KTP<input id="ktpPelanggan" required maxlength="30"></label>
+                    <label>Nomor telepon<input id="telpPelanggan" maxlength="20"></label>
+                    <label class="span-2">Alamat<textarea id="alamatPelanggan" rows="2"></textarea></label>
+                </div><div class="form-actions"><button type="button" class="btn btn-secondary" data-close="formPanelPelanggan">Batal</button><button class="btn btn-primary">Simpan pelanggan</button></div></form>
+            </div>
+            <article class="panel glass"><div class="panel-heading"><h3>Daftar pelanggan</h3><input class="search" id="searchPelanggan" placeholder="Cari nama atau KTP..."></div><p class="muted" id="countPelanggan"></p>
+                <div class="table-wrap"><table><thead><tr><th>Pelanggan</th><th>No. KTP</th><th>Telepon</th><th>Alamat</th><th>Aksi</th></tr></thead><tbody id="tablePelanggan"></tbody></table></div>
+            </article>
+        </section>
+
+        <section class="page" id="page-kendaraan">
+            <div class="page-intro"><div><p class="eyebrow">MASTER DATA</p><h2>Data kendaraan</h2><p>Kelola unit kendaraan yang dijual showroom.</p></div><button class="btn btn-primary" id="addKendaraan">＋ Tambah kendaraan</button></div>
+            <div class="panel glass form-panel" id="formPanelKendaraan" hidden><div class="panel-heading"><h3 id="kendaraanFormTitle">Tambah kendaraan</h3><button class="icon-btn" data-close="formPanelKendaraan">✕</button></div>
+                <form id="formKendaraan"><input type="hidden" id="kendaraanId"><div class="form-grid">
+                    <label>Merk<input id="merkKendaraan" required maxlength="60"></label><label>Model<input id="modelKendaraan" required maxlength="80"></label>
+                    <label>Tahun<input id="tahunKendaraan" type="number" min="1950" max="2100" required></label><label>Warna<input id="warnaKendaraan" maxlength="40"></label>
+                    <label>Harga kendaraan (Rp)<input id="hargaKendaraan" type="number" min="0" step="1000" required></label>
+                </div><div class="form-actions"><button type="button" class="btn btn-secondary" data-close="formPanelKendaraan">Batal</button><button class="btn btn-primary">Simpan kendaraan</button></div></form>
+            </div>
+            <article class="panel glass"><div class="panel-heading"><h3>Inventaris kendaraan</h3><input class="search" id="searchKendaraan" placeholder="Cari merk atau model..."></div><div class="filter-row"><span class="muted" id="countKendaraan"></span><select id="filterKendaraan"><option value="">Semua status</option><option>TERSEDIA</option><option>TERJUAL</option></select></div>
+                <div class="table-wrap"><table><thead><tr><th>Kendaraan</th><th>Tahun</th><th>Warna</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="tableKendaraan"></tbody></table></div>
+            </article>
+        </section>
+
+        <section class="page" id="page-penjualan">
+            <div class="page-intro"><div><p class="eyebrow">SALES & RECEIVABLES</p><h2>Penjualan</h2><p>Catat transaksi penjualan tunai muka atau kredit.</p></div><button class="btn btn-primary" id="addPenjualan">＋ Catat penjualan</button></div>
+            <div class="panel glass form-panel" id="formPanelPenjualan" hidden><div class="panel-heading"><h3 id="penjualanFormTitle">Catat penjualan</h3><button class="icon-btn" data-close="formPanelPenjualan">✕</button></div>
+                <form id="formPenjualan"><input type="hidden" id="penjualanId"><div class="form-grid">
+                    <label>Pelanggan<select id="pilihPelanggan" required></select></label><label>Kendaraan<select id="pilihKendaraan" required></select></label>
+                    <label>Tanggal penjualan<input id="tanggalPenjualan" type="date" required></label><label>Harga jual (Rp)<input id="hargaJual" type="number" min="0" required></label>
+                    <label>Uang muka (Rp)<input id="uangMuka" type="number" min="0" value="0" required></label>
+                </div><p class="helper">Sisa piutang dihitung otomatis oleh database berdasarkan harga jual, uang muka, dan pembayaran yang sudah tercatat.</p><div class="form-actions"><button type="button" class="btn btn-secondary" data-close="formPanelPenjualan">Batal</button><button class="btn btn-primary">Simpan penjualan</button></div></form>
+            </div>
+            <article class="panel glass"><div class="panel-heading"><h3>Daftar penjualan</h3><input class="search" id="searchPenjualan" placeholder="Cari pelanggan atau mobil..."></div><div class="filter-row"><span class="muted" id="countPenjualan"></span><select id="filterPenjualan"><option value="">Semua status</option><option>LUNAS</option><option>BELUM LUNAS</option></select></div>
+                <div class="table-wrap"><table><thead><tr><th>No. transaksi</th><th>Tanggal</th><th>Pelanggan</th><th>Kendaraan</th><th>Harga jual</th><th>Sisa piutang</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="tablePenjualan"></tbody></table></div>
+            </article>
+        </section>
+
+        <section class="page" id="page-pembayaran">
+            <div class="page-intro"><div><p class="eyebrow">CASH RECEIPTS</p><h2>Pembayaran</h2><p>Catat cicilan dan penerimaan piutang pelanggan.</p></div><button class="btn btn-primary" id="addPembayaran">＋ Catat pembayaran</button></div>
+            <div class="panel glass form-panel" id="formPanelPembayaran" hidden><div class="panel-heading"><h3 id="pembayaranFormTitle">Catat pembayaran</h3><button class="icon-btn" data-close="formPanelPembayaran">✕</button></div>
+                <form id="formPembayaran"><input type="hidden" id="pembayaranId"><div class="form-grid">
+                    <label>Transaksi penjualan<select id="pilihPenjualan" required></select><small id="paymentBalanceNote" class="muted"></small></label>
+                    <label>Tanggal pembayaran<input id="tanggalPembayaran" type="date" required></label><label>Jumlah pembayaran (Rp)<input id="jumlahBayar" type="number" min="1" required></label>
+                    <label>Keterangan<input id="keteranganPembayaran" maxlength="150" placeholder="Contoh: Cicilan ke-1"></label>
+                </div><div class="form-actions"><button type="button" class="btn btn-secondary" data-close="formPanelPembayaran">Batal</button><button class="btn btn-primary">Simpan pembayaran</button></div></form>
+            </div>
+            <article class="panel glass"><div class="panel-heading"><h3>Riwayat pembayaran</h3><input class="search" id="searchPembayaran" placeholder="Cari pelanggan atau keterangan..."></div><p class="muted" id="countPembayaran"></p>
+                <div class="table-wrap"><table><thead><tr><th>No. pembayaran</th><th>Tanggal</th><th>Pelanggan / kendaraan</th><th>Jumlah bayar</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="tablePembayaran"></tbody></table></div>
+            </article>
+        </section>
+
+        <section class="page" id="page-laporan">
+            <div class="page-intro"><div><p class="eyebrow">ACCOUNTING REPORT</p><h2>Laporan piutang</h2><p>Rekap saldo piutang untuk kebutuhan monitoring dan evaluasi.</p></div><button class="btn btn-primary" id="printReport">Cetak laporan</button></div>
+            <div class="stat-grid report-stats"><article class="stat-card glass"><span>Piutang awal</span><strong id="reportAwal">Rp0</strong></article><article class="stat-card glass"><span>Total pembayaran</span><strong id="reportBayar">Rp0</strong></article><article class="stat-card glass"><span>Sisa piutang</span><strong id="reportSisa">Rp0</strong></article></div>
+            <article class="panel glass"><div class="panel-heading"><h3>Rincian piutang per transaksi</h3><input class="search" id="searchLaporan" placeholder="Cari pelanggan atau kendaraan..."></div><div class="filter-row"><span></span><select id="filterLaporan"><option value="">Semua status</option><option>LUNAS</option><option>BELUM LUNAS</option></select></div>
+                <div class="table-wrap"><table><thead><tr><th>Transaksi</th><th>Tanggal</th><th>Pelanggan</th><th>Kendaraan</th><th>Harga jual</th><th>Uang muka</th><th>Cicilan</th><th>Sisa piutang</th><th>Status</th></tr></thead><tbody id="tableLaporan"></tbody></table></div>
+            </article>
+        </section>
+
+        <footer>Showroom AR · Sistem Manajemen Piutang Penjualan · Supabase PostgreSQL</footer>
+    </main>
+</div>
+<div id="toastHost" class="toast-host"></div>
+<script src="js/config.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
