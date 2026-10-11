@@ -4,6 +4,8 @@ const API = (
     window.SHOWROOM_API_URL ||
     (LOCAL_HOSTS.includes(window.location.hostname) ? "http://localhost:3000/api" : "")
 ).replace(/\/+$/, "");
+const SESSION_KEY = "showroom-ar-session";
+let authSession = null;
 const state = {
     pelanggan: [],
     kendaraan: [],
@@ -45,6 +47,17 @@ async function api(table, method = "GET", id = "", body = null) {
         throw new Error("URL backend production belum diatur di frontend/js/config.js.");
     }
 
+    const isAuthRequest = table === "auth";
+    if (!isAuthRequest && authSession && authSession.expiresAt <= Date.now() + 60_000) {
+        await refreshAuthSession();
+    }
+
+    const headers = {};
+    if (body) headers["Content-Type"] = "application/json";
+    if (authSession && (!isAuthRequest || id === "logout")) {
+        headers.Authorization = `Bearer ${authSession.accessToken}`;
+    }
+
     let response;
 
     try {
@@ -52,7 +65,7 @@ async function api(table, method = "GET", id = "", body = null) {
             `${API}/${table}${id ? "/" + id : ""}`,
             {
                 method,
-                headers: body ? { "Content-Type": "application/json" } : {},
+                headers,
                 body: body ? JSON.stringify(body) : undefined
             }
         );
@@ -71,10 +84,68 @@ async function api(table, method = "GET", id = "", body = null) {
     }
 
     if (!response.ok || result?.ok !== true) {
+        if (response.status === 401 && !isAuthRequest) {
+            clearAuthSession();
+            $("authGate").hidden = false;
+            $("loginError").textContent = "Sesi berakhir. Silakan login kembali.";
+            $("loginError").hidden = false;
+        }
         throw new Error(result?.error || "Permintaan gagal.");
     }
 
     return result.data;
+}
+
+function storeAuthSession(data) {
+    if (!data?.access_token || !data?.refresh_token) {
+        throw new Error("Supabase Auth mengembalikan sesi yang tidak lengkap.");
+    }
+
+    authSession = {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: Date.now() + (Number(data.expires_in) || 3600) * 1000,
+        email: data.user?.email || ""
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(authSession));
+}
+
+function clearAuthSession() {
+    authSession = null;
+    sessionStorage.removeItem(SESSION_KEY);
+    $("logoutButton").hidden = true;
+}
+
+async function refreshAuthSession() {
+    if (!authSession?.refreshToken) {
+        clearAuthSession();
+        throw new Error("Sesi berakhir. Silakan login kembali.");
+    }
+
+    try {
+        const data = await api("auth", "POST", "refresh", {
+            refresh_token: authSession.refreshToken
+        });
+        storeAuthSession(data);
+    } catch (error) {
+        clearAuthSession();
+        $("authGate").hidden = false;
+        throw error;
+    }
+}
+
+function restoreAuthSession() {
+    try {
+        const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+        if (stored?.accessToken && stored?.refreshToken &&
+            Number.isFinite(stored.expiresAt)) {
+            authSession = stored;
+        } else {
+            sessionStorage.removeItem(SESSION_KEY);
+        }
+    } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+    }
 }
 
 function pelanggan(id) {
@@ -195,6 +266,16 @@ $("addPembayaran").onclick = async () => {
 
 // Memuat empat entitas dari backend.
 async function loadAll() {
+    if (!authSession) {
+        $("authGate").hidden = false;
+        $("logoutButton").hidden = true;
+        $("backendStatus").textContent = "Login diperlukan";
+        $("backendStatusDetail").textContent = "Masuk untuk mengakses database";
+        return false;
+    }
+
+    $("authGate").hidden = true;
+    $("logoutButton").hidden = false;
     const refreshButton = $("refreshDashboard");
     const originalLabel = refreshButton.textContent;
     refreshButton.disabled = true;
@@ -811,9 +892,60 @@ $("filterKendaraan").addEventListener("change", renderKendaraan);
 $("filterPenjualan").addEventListener("change", renderPenjualan);
 $("filterLaporan").addEventListener("change", renderLaporan);
 $("refreshDashboard").addEventListener("click", loadAll);
+$("loginForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = $("loginButton");
+    const originalText = button.textContent;
+    $("loginError").hidden = true;
+    button.disabled = true;
+    button.textContent = "Memeriksa...";
+
+    try {
+        const data = await api("auth", "POST", "login", {
+            email: $("loginEmail").value.trim(),
+            password: $("loginPassword").value
+        });
+        storeAuthSession(data);
+        $("loginPassword").value = "";
+        $("loginError").hidden = true;
+        $("authGate").hidden = true;
+        await loadAll();
+    } catch (error) {
+        $("loginError").textContent = error.message;
+        $("loginError").hidden = false;
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+});
+$("logoutButton").addEventListener("click", async () => {
+    try {
+        await api("auth", "POST", "logout");
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        clearAuthSession();
+        $("loginPassword").value = "";
+        $("authGate").hidden = false;
+        $("backendStatus").textContent = "Login diperlukan";
+        $("backendStatusDetail").textContent = "Masuk untuk mengakses database";
+        state.pelanggan = [];
+        state.kendaraan = [];
+        state.penjualan = [];
+        state.pembayaran = [];
+        renderAll();
+    }
+});
 $("printReport").addEventListener("click", () => {
     showPage("laporan");
     window.print();
 });
 
-loadAll();
+restoreAuthSession();
+$("authGate").hidden = Boolean(authSession);
+$("logoutButton").hidden = !authSession;
+if (authSession) loadAll();
+else {
+    $("backendStatus").textContent = "Login diperlukan";
+    $("backendStatusDetail").textContent = "Masuk untuk mengakses database";
+}
