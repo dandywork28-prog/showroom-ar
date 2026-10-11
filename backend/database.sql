@@ -343,3 +343,69 @@ where s.is_demo and k.is_demo
       where existing.id_penjualan = s.id_penjualan
         and existing.keterangan = 'Cicilan contoh pertama'
   );
+
+-- GitHub Pages mengakses baris demo dengan publishable key dan role anon.
+-- Kebijakan lama pada empat tabel ini diganti agar data non-demo tetap privat.
+do $$
+declare
+    existing_policy record;
+begin
+    for existing_policy in
+        select schemaname, tablename, policyname
+        from pg_policies
+        where schemaname = 'public'
+          and tablename in ('pelanggan', 'kendaraan', 'penjualan', 'pembayaran')
+    loop
+        execute format(
+            'drop policy %I on %I.%I',
+            existing_policy.policyname,
+            existing_policy.schemaname,
+            existing_policy.tablename
+        );
+    end loop;
+end;
+$$;
+
+alter table public.pelanggan enable row level security;
+alter table public.kendaraan enable row level security;
+alter table public.penjualan enable row level security;
+alter table public.pembayaran enable row level security;
+
+create policy showroom_demo_pelanggan
+on public.pelanggan for all to anon, authenticated
+using (is_demo = true) with check (is_demo = true);
+create policy showroom_demo_kendaraan
+on public.kendaraan for all to anon, authenticated
+using (is_demo = true) with check (is_demo = true);
+create policy showroom_demo_penjualan
+on public.penjualan for all to anon, authenticated
+using (is_demo = true) with check (is_demo = true);
+create policy showroom_demo_pembayaran
+on public.pembayaran for all to anon, authenticated
+using (is_demo = true) with check (is_demo = true);
+
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete
+on public.pelanggan, public.kendaraan, public.penjualan, public.pembayaran
+to anon, authenticated;
+
+do $$
+declare
+    identity_sequence text;
+begin
+    foreach identity_sequence in array array[
+        pg_get_serial_sequence('public.pelanggan', 'id_pelanggan'),
+        pg_get_serial_sequence('public.kendaraan', 'id_kendaraan'),
+        pg_get_serial_sequence('public.penjualan', 'id_penjualan'),
+        pg_get_serial_sequence('public.pembayaran', 'id_pembayaran')
+    ]
+    loop
+        if identity_sequence is not null then
+            execute format(
+                'grant usage, select on sequence %s to anon, authenticated',
+                identity_sequence
+            );
+        end if;
+    end loop;
+end;
+$$;

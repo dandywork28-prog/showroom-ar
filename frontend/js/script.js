@@ -4,6 +4,14 @@ const API = (
     window.SHOWROOM_API_URL ||
     (LOCAL_HOSTS.includes(window.location.hostname) ? "http://localhost:3000/api" : "")
 ).replace(/\/+$/, "");
+const SUPABASE_URL = (window.SHOWROOM_SUPABASE_URL || "").replace(/\/+$/, "");
+const SUPABASE_KEY = window.SHOWROOM_SUPABASE_PUBLISHABLE_KEY || "";
+const SUPABASE_TABLE_IDS = Object.freeze({
+    pelanggan: "id_pelanggan",
+    kendaraan: "id_kendaraan",
+    penjualan: "id_penjualan",
+    pembayaran: "id_pembayaran"
+});
 const state = {
     pelanggan: [],
     kendaraan: [],
@@ -41,27 +49,55 @@ function toast(message, error = false) {
 }
 
 async function api(table, method = "GET", id = "", body = null) {
-    if (!API) {
-        throw new Error("URL backend production belum diatur di frontend/js/config.js.");
+    const idColumn = SUPABASE_TABLE_IDS[table];
+    if (!idColumn) throw new Error("Entitas tidak diizinkan.");
+
+    let url;
+    let requestMethod = method;
+    let requestBody = body;
+    const headers = {};
+
+    if (API) {
+        url = `${API}/${table}${id ? "/" + id : ""}`;
+        if (body) headers["Content-Type"] = "application/json";
+    } else {
+        if (!SUPABASE_URL || !SUPABASE_KEY) {
+            throw new Error("Konfigurasi Supabase publik belum diisi di frontend/js/config.js.");
+        }
+
+        const query = new URLSearchParams();
+        if (method === "GET") {
+            query.set("is_demo", "eq.true");
+            query.set("select", "*");
+            query.set("order", `${idColumn}.desc`);
+        }
+        if (id) {
+            query.set(idColumn, `eq.${id}`);
+            if (method !== "GET") query.set("is_demo", "eq.true");
+        }
+
+        if (method === "PUT") requestMethod = "PATCH";
+        if (body) requestBody = { ...body, is_demo: true };
+
+        url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
+        headers.apikey = SUPABASE_KEY;
+        headers.Authorization = `Bearer ${SUPABASE_KEY}`;
+        headers.Prefer = "return=representation";
+        if (requestBody) headers["Content-Type"] = "application/json";
     }
 
-    const headers = {};
-    if (body) headers["Content-Type"] = "application/json";
-
     let response;
-
     try {
-        response = await fetch(
-            `${API}/${table}${id ? "/" + id : ""}`,
-            {
-                method,
-                headers,
-                body: body ? JSON.stringify(body) : undefined
-            }
-        );
+        response = await fetch(url, {
+            method: requestMethod,
+            headers,
+            body: requestBody ? JSON.stringify(requestBody) : undefined
+        });
     } catch {
         throw new Error(
-            "Backend tidak terhubung. Jalankan backend/app.js terlebih dahulu."
+            API
+                ? "Backend tidak terhubung. Jalankan backend/app.js terlebih dahulu."
+                : "Supabase tidak terhubung. Periksa koneksi internet dan konfigurasi project."
         );
     }
 
@@ -70,14 +106,25 @@ async function api(table, method = "GET", id = "", body = null) {
     try {
         result = text ? JSON.parse(text) : null;
     } catch {
-        throw new Error("Respons backend bukan JSON yang valid.");
+        throw new Error("Respons server bukan JSON yang valid.");
     }
 
-    if (!response.ok || result?.ok !== true) {
-        throw new Error(result?.error || "Permintaan gagal.");
+    if (!response.ok || (API && result?.ok !== true)) {
+        throw new Error(
+            result?.error ||
+            result?.message ||
+            result?.details ||
+            "Permintaan gagal. Periksa kebijakan akses Supabase."
+        );
     }
 
-    return result.data;
+    if (API) return result.data;
+    if (method === "GET") {
+        if (id && !result.length) throw new Error("Data tidak ditemukan.");
+        return id ? result[0] : result;
+    }
+    if (id && !result.length) throw new Error("Data tidak ditemukan.");
+    return id ? result[0] : result;
 }
 
 function pelanggan(id) {
@@ -224,7 +271,9 @@ async function loadAll() {
 
         renderAll();
         $("backendStatus").textContent = "Backend terhubung";
-        $("backendStatusDetail").textContent = "Mode demo publik · data contoh";
+        $("backendStatusDetail").textContent = API
+            ? "Backend lokal · data demo"
+            : "Supabase langsung · data demo publik";
         $("backendStatusDot").classList.remove("offline");
         return true;
     } catch (error) {
