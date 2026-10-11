@@ -36,7 +36,9 @@ Frontend menggunakan `http://localhost:3000/api` ketika `window.SHOWROOM_API_URL
 
 ## Deploy
 
-GitHub Pages hanya menjalankan frontend statis, bukan backend Node.js. Workflow `.github/workflows/pages.yml` menerbitkan folder `frontend/` ke GitHub Pages setiap ada push ke branch `main`. Jika branch default repository berbeda, ubah pemicu `branches` pada workflow. Di repository GitHub, aktifkan **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Repository: [dandywork28-prog/showroom-ar](https://github.com/dandywork28-prog/showroom-ar).
+
+GitHub Pages hanya menjalankan frontend statis, bukan backend Node.js. Workflow `.github/workflows/pages.yml` menerbitkan folder `frontend/` ke GitHub Pages setiap ada push ke branch `main` dan mengaktifkan Pages otomatis. Alamat frontend: <https://dandywork28-prog.github.io/showroom-ar/>.
 
 Deploy `backend/` sebagai layanan Node.js di Render, Railway, atau host sejenis:
 
@@ -45,7 +47,7 @@ Deploy `backend/` sebagai layanan Node.js di Render, Railway, atau host sejenis:
 3. Atur environment variables pada dashboard hosting, bukan di GitHub:
    - `SUPABASE_URL`: URL project Supabase.
    - `SUPABASE_SERVICE_ROLE_KEY`: service-role secret yang diambil sendiri dari Supabase.
-   - `ALLOWED_ORIGINS`: origin Pages, misalnya `https://USERNAME.github.io` (tanpa path repository). Beberapa origin boleh dipisahkan koma.
+   - `ALLOWED_ORIGINS`: origin Pages `https://dandywork28-prog.github.io` (tanpa path repository). Beberapa origin boleh dipisahkan koma.
    - Host akan menyediakan `PORT`; jika tidak, aplikasi menggunakan port 3000.
 4. Setelah API online, ubah `frontend/js/config.js` menjadi:
 
@@ -53,7 +55,9 @@ Deploy `backend/` sebagai layanan Node.js di Render, Railway, atau host sejenis:
    window.SHOWROOM_API_URL = "https://URL-BACKEND-ANDA/api";
    ```
 
-   Commit perubahan tersebut lalu push agar Pages memakai backend production. Nilai ini hanya URL API, bukan key Supabase.
+   Commit perubahan tersebut lalu push agar Pages memakai backend production. Nilai ini hanya URL API, bukan key Supabase. Untuk Live Server di `localhost`, frontend tetap otomatis memakai API lokal.
+
+   Sebelum deploy, revoke/rotate key Supabase yang pernah ditempel di percakapan ini. Gunakan hanya key pengganti yang belum terekspos dan masukkan langsung sebagai environment variable rahasia di host backend.
 
 **Peringatan akses:** API backend ini belum memiliki login/otorisasi pengguna. CORS hanya membatasi pemakaian dari browser dan bukan perlindungan terhadap pemanggilan langsung. Jangan gunakan deployment terbuka ini dengan data pelanggan sungguhan atau data pribadi; sebelum penggunaan publik, tambahkan autentikasi dan otorisasi (misalnya Supabase Auth dan kebijakan akses yang sesuai).
 

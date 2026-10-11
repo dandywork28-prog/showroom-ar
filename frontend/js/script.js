@@ -1,5 +1,9 @@
 
-const API = (window.SHOWROOM_API_URL || "http://localhost:3000/api").replace(/\/+$/, "");
+const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+const API = (
+    window.SHOWROOM_API_URL ||
+    (LOCAL_HOSTS.includes(window.location.hostname) ? "http://localhost:3000/api" : "")
+).replace(/\/+$/, "");
 const state = {
     pelanggan: [],
     kendaraan: [],
@@ -37,6 +41,10 @@ function toast(message, error = false) {
 }
 
 async function api(table, method = "GET", id = "", body = null) {
+    if (!API) {
+        throw new Error("URL backend production belum diatur di frontend/js/config.js.");
+    }
+
     let response;
 
     try {
